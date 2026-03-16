@@ -108,12 +108,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
 .badge-flagged { background: rgba(255,173,31,0.2); color: #ffad1f; }
 .badge-unmoderated { background: rgba(136,153,166,0.2); color: #8899a6; }
-.community-note { background: transparent; border: 1px solid #38444d; border-radius: 16px; padding: 12px 16px; margin-top: 10px; font-size: 0.9rem; color: #d9d9d9; line-height: 1.5; }
-.community-note-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 0.8rem; color: #8899a6; font-weight: 600; }
-.community-note-header svg { width: 16px; height: 16px; fill: #8899a6; flex-shrink: 0; }
+.community-note { background: transparent; border: 1px solid #38444d; border-radius: 16px; margin-top: 10px; font-size: 0.9rem; color: #d9d9d9; line-height: 1.5; overflow: hidden; }
+.community-note-toggle { display: flex; align-items: center; gap: 6px; padding: 10px 16px; font-size: 0.8rem; color: #ffad1f; font-weight: 600; cursor: pointer; width: 100%; background: none; border: none; text-align: left; }
+.community-note-toggle svg { width: 16px; height: 16px; fill: #ffad1f; flex-shrink: 0; }
+.community-note-toggle .chevron { margin-left: auto; transition: transform 0.2s; }
+.community-note-body { display: none; padding: 0 16px 12px; }
+.community-note.open .community-note-body { display: block; }
+.community-note.open .chevron { transform: rotate(180deg); }
+.community-note-header { font-size: 0.8rem; color: #8899a6; font-weight: 600; margin-bottom: 8px; }
 .community-note-issues { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .community-note-issues span { background: rgba(255,173,31,0.12); color: #ffad1f; padding: 2px 10px; border-radius: 9999px; font-size: 0.78rem; font-weight: 500; }
 .community-note-summary { color: #8899a6; font-size: 0.85rem; line-height: 1.5; }
+.badge-note { background: #ffad1f; color: #15202b; font-weight: 700; }
 .blocked-notice { background: rgba(224,36,94,0.1); border: 1px solid rgba(224,36,94,0.3); border-radius: 8px; padding: 12px 16px; margin: 12px 0; color: #e0245e; }
 .profile-header { padding: 24px 0; border-bottom: 1px solid #38444d; }
 .profile-header h2 { font-size: 1.3rem; color: #fff; }
@@ -164,27 +170,36 @@ function tweetCard(tweet, currentUserId) {
   const isAuthor = tweet.user_id === currentUserId;
   const date = new Date(tweet.created_at + 'Z').toLocaleDateString();
 
-  // Community Note: only visible to non-authors
+  // Community Note: visible to ALL users on flagged posts
   let communityNote = '';
-  if (tweet.moderation_status === 'flagged' && tweet.moderation_tier2 && !isAuthor) {
+  if (tweet.moderation_status === 'flagged' && tweet.moderation_tier2) {
     try {
       const t2 = JSON.parse(tweet.moderation_tier2);
       if (t2 && t2.issues && t2.issues.length > 0) {
         const issueChips = t2.issues.map(i => `<span>${escapeHtml(i)}</span>`).join('');
         const summary = t2.summary ? `<div class="community-note-summary">${escapeHtml(t2.summary)}</div>` : '';
-        communityNote = `<div class="community-note">
-          <div class="community-note-header">
-            <svg viewBox="0 0 24 24"><path d="M7.5 4.27 12 2l4.5 2.27L21 4v8.18c0 4.24-3.16 8.2-9 9.82-5.84-1.62-9-5.58-9-9.82V4l4.5.27zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-1-4.5V7h2v1.5H11zm0 3.5v4h2v-4h-1z"/></svg>
-            Readers added context they thought people might want to know
+        communityNote = `<div class="community-note" onclick="this.classList.toggle('open')">
+          <button class="community-note-toggle" type="button">
+            <svg viewBox="0 0 24 24"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 6h2v2h-2V8zm0 4h2v4h-2v-4z"/></svg>
+            Community Note
+            <svg class="chevron" viewBox="0 0 24 24" width="14" height="14"><path fill="#ffad1f" d="M7 10l5 5 5-5z"/></svg>
+          </button>
+          <div class="community-note-body">
+            <div class="community-note-header">Readers added context they thought people might want to know</div>
+            <div class="community-note-issues">${issueChips}</div>
+            ${summary}
           </div>
-          <div class="community-note-issues">${issueChips}</div>
-          ${summary}
         </div>`;
       }
     } catch {}
   }
 
-  const badge = '';
+  // Badge for flagged posts
+  const badge = (tweet.moderation_status === 'flagged')
+    ? '<span class="badge badge-note">Note</span>'
+    : (tweet.moderation_status === 'pending')
+      ? '<span class="badge badge-unmoderated">Pending</span>'
+      : '';
 
   return `<div class="tweet">
     <div class="tweet-header">
@@ -466,6 +481,24 @@ app.get('/', async (c) => {
     ORDER BY t.created_at DESC
     LIMIT 50`
   ).bind(user.id).all();
+
+  // Background sweep: moderate any pending/unmoderated posts
+  const unmoderated = tweets.filter(t => t.moderation_status === 'pending' || t.moderation_status === 'unmoderated');
+  if (unmoderated.length > 0) {
+    const env = c.env;
+    c.executionCtx.waitUntil((async () => {
+      for (const t of unmoderated) {
+        try {
+          const result = await moderate(env, t.content);
+          await env.DB.prepare(
+            `UPDATE tweets SET moderation_status = ?, moderation_tier1 = ?, moderation_tier2 = ? WHERE id = ?`
+          ).bind(result.status, JSON.stringify(result.tier1), JSON.stringify(result.tier2), t.id).run();
+        } catch (err) {
+          console.error(`Background moderation failed for tweet ${t.id}:`, err.message);
+        }
+      }
+    })());
+  }
 
   const tweetHtml = tweets.map(t => tweetCard(t, user.id)).join('');
 
