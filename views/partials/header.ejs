@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chirp</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% if (user) { %>
+  <nav class="navbar">
+    <a href="/" class="logo">Chirp</a>
+    <div class="nav-links">
+      <a href="/">Timeline</a>
+      <a href="/user/<%= user.username %>">Profile</a>
+      <a href="/moderation">Moderation</a>
+      <a href="/logout">Logout</a>
+    </div>
+    <span class="nav-user">@<%= user.username %></span>
+  </nav>
+  <% } %>
+  <main class="container">

@@ -1,0 +1,54 @@
+<%- include('partials/header') %>
+
+<div class="profile-header">
+  <h2><%= profile.display_name %></h2>
+  <span class="tweet-handle">@<%= profile.username %></span>
+  <div class="profile-stats">
+    <span><strong><%= followerCount %></strong> followers</span>
+    <span><strong><%= followingCount %></strong> following</span>
+    <span><strong><%= tweets.length %></strong> posts</span>
+  </div>
+  <% if (user && user.id !== profile.id) { %>
+    <div class="profile-actions">
+      <form method="POST" action="/follow/<%= profile.id %>">
+        <button class="btn btn-sm <%= isFollowing ? 'btn-outline' : '' %>">
+          <%= isFollowing ? 'Unfollow' : 'Follow' %>
+        </button>
+      </form>
+    </div>
+  <% } %>
+</div>
+
+<% if (tweets.length === 0) { %>
+  <div class="empty-state">No posts yet.</div>
+<% } %>
+
+<% tweets.forEach(tweet => { %>
+  <div class="tweet">
+    <div class="tweet-header">
+      <a href="/user/<%= tweet.username %>" class="tweet-author"><%= tweet.display_name %></a>
+      <span class="tweet-handle">@<%= tweet.username %></span>
+      <% if (tweet.moderation_status === 'flagged') { %>
+        <span class="badge badge-flagged">Flagged</span>
+      <% } %>
+      <span class="tweet-time"><%= new Date(tweet.created_at).toLocaleDateString() %></span>
+    </div>
+    <div class="tweet-content"><%= tweet.content %></div>
+    <% if (tweet.moderation_status === 'flagged' && tweet.moderation_tier2) { %>
+      <% try { const t2 = JSON.parse(tweet.moderation_tier2); if (t2 && t2.issues && t2.issues.length > 0) { %>
+        <div class="flag-info">
+          <strong>Context note:</strong> This post may contain: <%= t2.issues.join(', ') %>
+        </div>
+      <% } } catch(e) {} %>
+    <% } %>
+    <div class="tweet-actions">
+      <form method="POST" action="/like/<%= tweet.id %>">
+        <button class="<%= tweet.liked_by_me ? 'liked' : '' %>">
+          <%= tweet.liked_by_me ? '&#9829;' : '&#9825;' %> <%= tweet.like_count %>
+        </button>
+      </form>
+    </div>
+  </div>
+<% }) %>
+
+<%- include('partials/footer') %>

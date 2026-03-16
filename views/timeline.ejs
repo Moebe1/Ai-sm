@@ -1,0 +1,58 @@
+<%- include('partials/header') %>
+
+<% if (typeof blocked !== 'undefined' || (typeof query !== 'undefined' && query && query.blocked)) { %>
+  <div class="blocked-notice">
+    Your post was blocked by moderation. It contained content that violates community guidelines.
+  </div>
+<% } %>
+
+<div class="compose">
+  <form method="POST" action="/tweet">
+    <textarea name="content" placeholder="What's happening?" maxlength="280" id="tweet-input"></textarea>
+    <div class="compose-footer">
+      <span class="char-count"><span id="char-count">0</span>/280</span>
+      <button class="btn" type="submit">Post</button>
+    </div>
+  </form>
+</div>
+
+<% if (tweets.length === 0) { %>
+  <div class="empty-state">No posts yet. Be the first to chirp!</div>
+<% } %>
+
+<% tweets.forEach(tweet => { %>
+  <div class="tweet">
+    <div class="tweet-header">
+      <a href="/user/<%= tweet.username %>" class="tweet-author"><%= tweet.display_name %></a>
+      <span class="tweet-handle">@<%= tweet.username %></span>
+      <% if (tweet.moderation_status === 'flagged') { %>
+        <span class="badge badge-flagged">Flagged</span>
+      <% } else if (tweet.moderation_status === 'unmoderated') { %>
+        <span class="badge badge-unmoderated">Unmoderated</span>
+      <% } %>
+      <span class="tweet-time"><%= new Date(tweet.created_at).toLocaleDateString() %></span>
+    </div>
+    <div class="tweet-content"><%= tweet.content %></div>
+    <% if (tweet.moderation_status === 'flagged' && tweet.moderation_tier2) { %>
+      <% try { const t2 = JSON.parse(tweet.moderation_tier2); if (t2 && t2.issues && t2.issues.length > 0) { %>
+        <div class="flag-info">
+          <strong>Context note:</strong> This post may contain: <%= t2.issues.join(', ') %>
+        </div>
+      <% } } catch(e) {} %>
+    <% } %>
+    <div class="tweet-actions">
+      <form method="POST" action="/like/<%= tweet.id %>">
+        <button class="<%= tweet.liked_by_me ? 'liked' : '' %>">
+          <%= tweet.liked_by_me ? '&#9829;' : '&#9825;' %> <%= tweet.like_count %>
+        </button>
+      </form>
+    </div>
+  </div>
+<% }) %>
+
+<script>
+  const input = document.getElementById('tweet-input');
+  const count = document.getElementById('char-count');
+  input.addEventListener('input', () => { count.textContent = input.value.length; });
+</script>
+<%- include('partials/footer') %>

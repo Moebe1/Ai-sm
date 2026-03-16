@@ -1,0 +1,36 @@
+<%- include('partials/header') %>
+
+<div class="mod-header">
+  <h2>Moderation Dashboard</h2>
+  <p style="color: #8899a6; margin-top: 4px;">Posts flagged for logical fallacies or manipulation</p>
+</div>
+
+<% if (flagged.length === 0) { %>
+  <div class="empty-state">No flagged posts. All clear!</div>
+<% } %>
+
+<% flagged.forEach(tweet => { %>
+  <div class="mod-tweet">
+    <div class="tweet-header">
+      <a href="/user/<%= tweet.username %>" class="tweet-author"><%= tweet.display_name %></a>
+      <span class="tweet-handle">@<%= tweet.username %></span>
+      <span class="badge badge-flagged">Flagged</span>
+      <span class="tweet-time"><%= new Date(tweet.created_at).toLocaleDateString() %></span>
+    </div>
+    <div class="tweet-content"><%= tweet.content %></div>
+    <div class="mod-details">
+      <% if (tweet.moderation_tier2) { %>
+        <% try { const t2 = JSON.parse(tweet.moderation_tier2); %>
+          <% if (t2.issues && t2.issues.length > 0) { %>
+            <p><strong>Issues:</strong> <%= t2.issues.join(', ') %></p>
+          <% } %>
+          <% if (t2.summary) { %>
+            <p><strong>Analysis:</strong> <%= t2.summary %></p>
+          <% } %>
+        <% } catch(e) {} %>
+      <% } %>
+    </div>
+  </div>
+<% }) %>
+
+<%- include('partials/footer') %>
