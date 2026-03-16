@@ -222,7 +222,8 @@ async function callOllama(env, messages) {
   }
 
   const data = await res.json();
-  return data.message?.content || '';
+  // Some models (e.g. deepseek) put output in "thinking" field instead of "content"
+  return data.message?.content || data.message?.thinking || '';
 }
 
 function parseJson(response) {
