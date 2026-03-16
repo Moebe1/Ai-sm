@@ -108,9 +108,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
 .badge-flagged { background: rgba(255,173,31,0.2); color: #ffad1f; }
 .badge-unmoderated { background: rgba(136,153,166,0.2); color: #8899a6; }
-.flag-info { background: rgba(255,173,31,0.08); border: 1px solid rgba(255,173,31,0.3); border-radius: 8px; padding: 10px 14px; margin-top: 8px; font-size: 0.85rem; color: #ffad1f; line-height: 1.5; }
-.flag-info strong { color: #fff; }
-.flag-info .flag-detail { margin-top: 6px; color: #ccc; font-size: 0.82rem; }
+.community-note { background: transparent; border: 1px solid #38444d; border-radius: 16px; padding: 12px 16px; margin-top: 10px; font-size: 0.9rem; color: #d9d9d9; line-height: 1.5; }
+.community-note-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 0.8rem; color: #8899a6; font-weight: 600; }
+.community-note-header svg { width: 16px; height: 16px; fill: #8899a6; flex-shrink: 0; }
+.community-note-issues { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.community-note-issues span { background: rgba(255,173,31,0.12); color: #ffad1f; padding: 2px 10px; border-radius: 9999px; font-size: 0.78rem; font-weight: 500; }
+.community-note-summary { color: #8899a6; font-size: 0.85rem; line-height: 1.5; }
 .blocked-notice { background: rgba(224,36,94,0.1); border: 1px solid rgba(224,36,94,0.3); border-radius: 8px; padding: 12px 16px; margin: 12px 0; color: #e0245e; }
 .profile-header { padding: 24px 0; border-bottom: 1px solid #38444d; }
 .profile-header h2 { font-size: 1.3rem; color: #fff; }
@@ -161,25 +164,27 @@ function tweetCard(tweet, currentUserId) {
   const isAuthor = tweet.user_id === currentUserId;
   const date = new Date(tweet.created_at + 'Z').toLocaleDateString();
 
-  // Parse tier2 data for non-authors
-  let flagInfo = '';
+  // Community Note: only visible to non-authors
+  let communityNote = '';
   if (tweet.moderation_status === 'flagged' && tweet.moderation_tier2 && !isAuthor) {
     try {
       const t2 = JSON.parse(tweet.moderation_tier2);
       if (t2 && t2.issues && t2.issues.length > 0) {
-        const issues = t2.issues.map(i => escapeHtml(i)).join(', ');
-        const summary = t2.summary ? `<div class="flag-detail">${escapeHtml(t2.summary)}</div>` : '';
-        flagInfo = `<div class="flag-info"><strong>Reader context:</strong> This post may contain: ${issues}${summary}</div>`;
+        const issueChips = t2.issues.map(i => `<span>${escapeHtml(i)}</span>`).join('');
+        const summary = t2.summary ? `<div class="community-note-summary">${escapeHtml(t2.summary)}</div>` : '';
+        communityNote = `<div class="community-note">
+          <div class="community-note-header">
+            <svg viewBox="0 0 24 24"><path d="M7.5 4.27 12 2l4.5 2.27L21 4v8.18c0 4.24-3.16 8.2-9 9.82-5.84-1.62-9-5.58-9-9.82V4l4.5.27zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-1-4.5V7h2v1.5H11zm0 3.5v4h2v-4h-1z"/></svg>
+            Readers added context they thought people might want to know
+          </div>
+          <div class="community-note-issues">${issueChips}</div>
+          ${summary}
+        </div>`;
       }
     } catch {}
   }
 
-  // Badge: only show to non-authors
-  const badge = (tweet.moderation_status === 'flagged' && !isAuthor)
-    ? '<span class="badge badge-flagged">Flagged</span>'
-    : (tweet.moderation_status === 'unmoderated')
-      ? '<span class="badge badge-unmoderated">Unmoderated</span>'
-      : '';
+  const badge = '';
 
   return `<div class="tweet">
     <div class="tweet-header">
@@ -189,7 +194,7 @@ function tweetCard(tweet, currentUserId) {
       <span class="tweet-time">${date}</span>
     </div>
     <div class="tweet-content">${escapeHtml(tweet.content)}</div>
-    ${flagInfo}
+    ${communityNote}
     <div class="tweet-actions">
       <form method="POST" action="/like/${tweet.id}">
         <button class="${tweet.liked_by_me ? 'liked' : ''}">
@@ -497,22 +502,28 @@ app.post('/tweet', async (c) => {
   if (!content || content.length === 0) return c.redirect('/');
   if (content.length > 280) return c.redirect('/?error=too_long');
 
-  const result = await moderate(c.env, content);
+  // Insert immediately as pending — user isn't blocked
+  const { meta } = await c.env.DB.prepare(
+    `INSERT INTO tweets (user_id, content, moderation_status) VALUES (?, ?, 'pending')`
+  ).bind(user.id, content).run();
 
-  await c.env.DB.prepare(
-    `INSERT INTO tweets (user_id, content, moderation_status, moderation_tier1, moderation_tier2)
-     VALUES (?, ?, ?, ?, ?)`
-  ).bind(
-    user.id,
-    content,
-    result.status,
-    JSON.stringify(result.tier1),
-    JSON.stringify(result.tier2)
-  ).run();
+  const tweetId = meta.last_row_id;
 
-  if (result.status === 'blocked') {
-    return c.redirect('/?blocked=1');
-  }
+  // Run moderation in the background via waitUntil
+  const env = c.env;
+  c.executionCtx.waitUntil((async () => {
+    try {
+      const result = await moderate(env, content);
+      await env.DB.prepare(
+        `UPDATE tweets SET moderation_status = ?, moderation_tier1 = ?, moderation_tier2 = ? WHERE id = ?`
+      ).bind(result.status, JSON.stringify(result.tier1), JSON.stringify(result.tier2), tweetId).run();
+    } catch (err) {
+      console.error('Background moderation failed:', err.message);
+      await env.DB.prepare(
+        `UPDATE tweets SET moderation_status = 'unmoderated' WHERE id = ?`
+      ).bind(tweetId).run();
+    }
+  })());
 
   return c.redirect('/');
 });
