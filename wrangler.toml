@@ -4,7 +4,7 @@ compatibility_date = "2024-12-01"
 
 [vars]
 OLLAMA_BASE_URL = "https://ollama.com"
-OLLAMA_MODEL = "deepseek-v3.2"
+OLLAMA_MODEL = "gemini-3-flash-preview:cloud"
 
 [[d1_databases]]
 binding = "DB"
