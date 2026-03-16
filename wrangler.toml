@@ -1,0 +1,12 @@
+name = "chirp"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+
+[vars]
+OLLAMA_BASE_URL = "https://ollama.com"
+OLLAMA_MODEL = "qwen3"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "chirp-db"
+database_id = "placeholder-will-be-set-after-create"

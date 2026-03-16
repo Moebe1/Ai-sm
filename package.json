@@ -1,11 +1,13 @@
 {
-  "name": "ai-sm",
-  "version": "1.0.0",
-  "description": "Twitter clone with two-tier LLM moderation via Ollama Cloud",
-  "main": "server.js",
+  "name": "chirp",
+  "version": "2.0.0",
+  "description": "Twitter clone with two-tier LLM moderation via Ollama Cloud - deployed on Cloudflare Workers",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 execute chirp-db --local --file=./migrations/0001_init.sql",
+    "db:migrate:remote": "wrangler d1 execute chirp-db --remote --file=./migrations/0001_init.sql"
   },
   "repository": {
     "type": "git",
@@ -15,10 +17,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.8.0",
-    "ejs": "^5.0.1",
-    "express": "^5.2.1",
-    "express-session": "^1.19.0"
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
   }
 }

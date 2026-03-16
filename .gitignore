@@ -4,3 +4,5 @@ node_modules/
 *.db-wal
 *.db-journal
 .env
+.wrangler/
+.dev.vars
