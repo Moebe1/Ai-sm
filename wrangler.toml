@@ -4,7 +4,7 @@ compatibility_date = "2024-12-01"
 
 [vars]
 OLLAMA_BASE_URL = "https://ollama.com"
-OLLAMA_MODEL = "qwen3"
+OLLAMA_MODEL = "gemma3:27b"
 
 [[d1_databases]]
 binding = "DB"
