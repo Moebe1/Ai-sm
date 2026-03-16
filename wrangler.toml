@@ -9,4 +9,4 @@ OLLAMA_MODEL = "qwen3"
 [[d1_databases]]
 binding = "DB"
 database_name = "chirp-db"
-database_id = "placeholder-will-be-set-after-create"
+database_id = "a4673063-e0c3-4fec-9b85-faa4e5fb61c0"
